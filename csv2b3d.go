@@ -19,6 +19,16 @@ type FieldVector struct {
 	En  float64
 }
 
+type Point struct {
+	lat float64
+	lon float64
+}
+
+type Vector struct {
+	Ee float64
+	En float64
+}
+
 type CoordRange struct {
 	lat0     float64
 	lon0     float64
@@ -62,6 +72,41 @@ func readLine(line string) (FieldVector, error) {
 	}
 
 	return FieldVector{lat: lat, lon: lon, Ee: Ee, En: En}, nil
+}
+
+func readFile(csvPath string) map[Point]Vector {
+	fi, err := os.Open(csvPath)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to open %s for reading, aborting\n", csvPath)
+		os.Exit(1)
+	}
+
+	defer fi.Close()
+
+	scanner := bufio.NewScanner(fi)
+	scanner.Scan()
+
+	vectors := map[Point]Vector{}
+
+	nPoints := 0
+
+	for scanner.Scan() {
+		nPoints++
+		vec, err := readLine(scanner.Text())
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading %s:%s: %v", csvPath, nPoints, err)
+			os.Exit(1)
+		}
+
+		point := Point{lat: vec.lat, lon: vec.lon}
+		vector := Vector{Ee: vec.Ee, En: vec.En}
+		vectors[point] = vector
+
+	}
+
+	return vectors
 }
 
 func getRange(csvPath string) CoordRange {
@@ -223,13 +268,6 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
-	numPoints := uint32(cr.nPoints)
-
-	if err := binary.Write(fo, binary.LittleEndian, numPoints); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write latitude points count %d, aborting: %v\n", numPoints, err)
-		os.Exit(1)
-	}
-
 	var time0 uint32 = 1462665600
 
 	if err := binary.Write(fo, binary.LittleEndian, time0); err != nil {
@@ -244,17 +282,17 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
-	var timeStep uint32 = 60
-
-	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
-		os.Exit(1)
-	}
-
 	var timeOffset uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time offset %d, aborting: %v\n", timeOffset, err)
+		os.Exit(1)
+	}
+
+	var timeStep uint32 = 60
+
+	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
 		os.Exit(1)
 	}
 
@@ -278,6 +316,7 @@ func main() {
 	fmt.Fprintf(os.Stderr, "In  : %s\nOut: %s\n", csvFolder, b3dFile)
 
 	csvFiles, err := os.ReadDir(csvFolder)
+	// csvFiles = csvFiles[0:5]
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to list folder %s, aborting\n", csvFolder)
@@ -295,51 +334,40 @@ func main() {
 	cr := getRange(filepath.Join(csvFolder, csvFiles[0].Name()))
 	cr.nTimes = len(csvFiles)
 
-	fmt.Fprintf(os.Stderr, "%f:%f:%d\n", cr.lat0, cr.latStep, cr.nLat)
-	fmt.Fprintf(os.Stderr, "%f:%f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
-	fmt.Fprintf(os.Stderr, "%d\n", cr.nPoints)
+	fmt.Fprintf(os.Stderr, "Lat range: %f:%f:%d\n", cr.lat0, cr.latStep, cr.nLat)
+	fmt.Fprintf(os.Stderr, "Lon range: %f:%f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
+	fmt.Fprintf(os.Stderr, "Points: %d\n", cr.nPoints)
+	fmt.Fprintf(os.Stderr, "Times: %d\n", cr.nTimes)
+
 	writeHeader(fo, cr)
 
 	for i, csvFile := range csvFiles {
-		if i >= 3 {
-			break
-		}
-
 		csvPath := filepath.Join(csvFolder, csvFile.Name())
 		fmt.Printf("%d: %s\n", i+1, csvFile.Name())
+		field := readFile(csvPath)
 
-		fi, err := os.Open(csvPath)
+		for lati := 0; lati < cr.nLat; lati++ {
+			for loni := 0; loni < cr.nLon; loni++ {
+				lat := cr.lat0 + cr.latStep*float64(lati)
+				lon := cr.lon0 + cr.lonStep*float64(loni)
+				point := Point{lat: lat, lon: lon}
+				vec := field[point]
 
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to open %s for reading, aborting\n", csvPath)
-			os.Exit(1)
+				Ee := float32(vec.Ee)
+				En := float32(vec.En)
+
+				if err := binary.Write(fo, binary.LittleEndian, Ee); err != nil {
+					fmt.Fprintf(os.Stderr, "Unable to write Ee %f, aborting: %v\n", Ee, err)
+					os.Exit(1)
+				}
+
+				if err := binary.Write(fo, binary.LittleEndian, En); err != nil {
+					fmt.Fprintf(os.Stderr, "Unable to write En %f, aborting: %v\n", En, err)
+					os.Exit(1)
+				}
+			}
 		}
 
-		defer fi.Close()
-
-		scanner := bufio.NewScanner(fi)
-		scanner.Scan()
-
-		j := 0
-
-		for scanner.Scan() {
-			j++
-
-			if j >= 5 {
-				break
-			}
-
-			// fmt.Println(scanner.Text())
-			// Lat(Deg),Lon(Deg),Ee(V/km),En(V/km),Em(V/km)
-			vec, err := readLine(scanner.Text())
-
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading %s:%s: %v", csvFile, j, err)
-				os.Exit(1)
-			}
-
-			fmt.Printf("%f,%f,%f,%f\n", vec.lat, vec.lon, vec.Ee, vec.En)
-		}
 	}
 
 }
