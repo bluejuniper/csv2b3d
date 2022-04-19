@@ -200,31 +200,94 @@ func main() {
 		os.Exit(1)
 	}
 
-	var locFormat uint32 = 1
+	var locFormat uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write location format to %s, aborting: %v\n", b3dFile, err)
 		os.Exit(1)
 	}
 
-	var lon0 float32 = float32(cr.lon0)
+	lon0 := float32(cr.lon0)
 
 	if err := binary.Write(fo, binary.LittleEndian, lon0); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude origin to %s, aborting: %v\n", b3dFile, err)
+		fmt.Fprintf(os.Stderr, "Unable to write longitude origin %f to %s, aborting: %v\n", lon0, b3dFile, err)
 		os.Exit(1)
 	}
 
-	var lonStep float32 = float32(cr.lonStep)
+	lonStep := float32(cr.lonStep)
 
 	if err := binary.Write(fo, binary.LittleEndian, lonStep); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude step to %s, aborting: %v\n", b3dFile, err)
+		fmt.Fprintf(os.Stderr, "Unable to write longitude step %f to %s, aborting: %v\n", lonStep, b3dFile, err)
 		os.Exit(1)
 	}
 
-	var lonPoints uint32 = uint32(cr.nLon)
+	lonPoints := uint32(cr.nLon)
 
 	if err := binary.Write(fo, binary.LittleEndian, lonPoints); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude points count to %s, aborting: %v\n", b3dFile, err)
+		fmt.Fprintf(os.Stderr, "Unable to write longitude points count %d to %s, aborting: %v\n", lonPoints, b3dFile, err)
+		os.Exit(1)
+	}
+
+	lat0 := float32(cr.lat0)
+
+	if err := binary.Write(fo, binary.LittleEndian, lat0); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write latitude origin %f to %s, aborting: %v\n", lat0, b3dFile, err)
+		os.Exit(1)
+	}
+
+	latStep := float32(cr.latStep)
+
+	if err := binary.Write(fo, binary.LittleEndian, latStep); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write latitude step %f to %s, aborting: %v\n", latStep, b3dFile, err)
+		os.Exit(1)
+	}
+
+	latPoints := uint32(cr.nLat)
+
+	if err := binary.Write(fo, binary.LittleEndian, latPoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write latitude points count %d to %s, aborting: %v\n", latPoints, b3dFile, err)
+		os.Exit(1)
+	}
+
+	numPoints := uint32(cr.nPoints)
+
+	if err := binary.Write(fo, binary.LittleEndian, numPoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write latitude points count %d to %s, aborting: %v\n", numPoints, b3dFile, err)
+		os.Exit(1)
+	}
+
+	var time0 uint32 = 1462665600
+
+	if err := binary.Write(fo, binary.LittleEndian, time0); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time origin %d to %s, aborting: %v\n", time0, b3dFile, err)
+		os.Exit(1)
+	}
+
+	var timeUnits int32 = 1
+
+	if err := binary.Write(fo, binary.LittleEndian, timeUnits); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time units %d to %s, aborting: %v\n", timeUnits, b3dFile, err)
+		os.Exit(1)
+	}
+
+	var timeStep uint32 = 60
+
+	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time step %d to %s, aborting: %v\n", timeStep, b3dFile, err)
+		os.Exit(1)
+	}
+
+	var timeOffset uint32 = 0
+
+	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time offset %d to %s, aborting: %v\n", timeOffset, b3dFile, err)
+		os.Exit(1)
+	}
+
+	timePoints := uint32(len(csvFiles))
+
+	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time points count %d to %s, aborting: %v\n", timePoints, b3dFile, err)
 		os.Exit(1)
 	}
 
