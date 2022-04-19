@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
-	// "io"
 	"bufio"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -95,48 +96,34 @@ func getRange(csvPath string) CoordRange {
 	latMax := 0.0
 	lonMax := 0.0
 
-	for k := range lats {
+	for k, _ := range lats {
 		lat0 = k
 		latMax = k
 		break
 	}
 
-	for k := range lons {
+	for k, _ := range lons {
 		lon0 = k
 		lonMax = k
 		break
 	}
 
-	for k := range lats {
-		if k < lat0 {
-			lat0 = k
-		}
-
-		if k > latMax {
-			latMax = k
-		}
-
-		break
+	for k, _ := range lats {
+		lat0 = math.Min(lat0, k)
+		latMax = math.Max(latMax, k)
 	}
 
-	for k := range lons {
-		if k < lon0 {
-			lon0 = k
-		}
-
-		if k > lonMax {
-			lonMax = k
-		}
-
-		break
+	for k, _ := range lons {
+		lon0 = math.Min(lon0, k)
+		lonMax = math.Max(lonMax, k)
 	}
 
-	fmt.Printf("latMax: %f, nLat: %d\nlonMax: %f, nLon: %d\n", latMax, len(lats), lonMax, len(lons))
+	// fmt.Printf("latMax: %f, nLat: %d\nlonMax: %f, nLon: %d\n", latMax, len(lats), lonMax, len(lons))
 
 	return CoordRange{
 		lat0: lat0, lon0: lon0,
 		nLat: len(lats), nLon: len(lons),
-		latStep: (latMax - lat0) / float64(len(lats)), lonStep: (lonMax - lon0) / float64(len(lons)),
+		latStep: (latMax - lat0) / float64(len(lats)-1), lonStep: (lonMax - lon0) / float64(len(lons)-1),
 		nPoints: nPoints,
 	}
 }
@@ -171,6 +158,75 @@ func main() {
 	fmt.Fprintf(os.Stderr, "%f:%f:%d\n", cr.lat0, cr.latStep, cr.nLat)
 	fmt.Fprintf(os.Stderr, "%f:%f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
 	fmt.Fprintf(os.Stderr, "%d\n", cr.nPoints)
+	var magicNumber uint32 = 34280
+
+	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write magic byte to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var b3dVersion uint32 = 4
+
+	if err := binary.Write(fo, binary.LittleEndian, b3dVersion); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write B3D version to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var nMetaStrings uint32 = 0
+
+	if err := binary.Write(fo, binary.LittleEndian, nMetaStrings); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write meta string count to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	// var metaString string = "B3D file written by csv2b3d"
+
+	// if err := binary.Write(fo, binary.LittleEndian, metaString); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Unable to write meta string to %s, aborting: %v\n", b3dFile, err)
+	// 	os.Exit(1)
+	// }
+
+	var nFloatChannels uint32 = 2
+
+	if err := binary.Write(fo, binary.LittleEndian, nFloatChannels); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write float channel count to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var nByteChannels uint32 = 0
+
+	if err := binary.Write(fo, binary.LittleEndian, nByteChannels); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write byte channel count to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var locFormat uint32 = 1
+
+	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write location format to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var lon0 float32 = float32(cr.lon0)
+
+	if err := binary.Write(fo, binary.LittleEndian, lon0); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write longitude origin to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var lonStep float32 = float32(cr.lonStep)
+
+	if err := binary.Write(fo, binary.LittleEndian, lonStep); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write longitude step to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
+
+	var lonPoints uint32 = uint32(cr.nLon)
+
+	if err := binary.Write(fo, binary.LittleEndian, lonPoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write longitude points count to %s, aborting: %v\n", b3dFile, err)
+		os.Exit(1)
+	}
 
 	for i, csvFile := range csvFiles {
 		if i >= 3 {
@@ -210,8 +266,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			fmt.Fprintf(fo, "%f,%f,%f,%f\n", vec.lat, vec.lon, vec.Ee, vec.En)
-
+			fmt.Printf("%f,%f,%f,%f\n", vec.lat, vec.lon, vec.Ee, vec.En)
 		}
 	}
 
