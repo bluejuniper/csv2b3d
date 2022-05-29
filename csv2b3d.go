@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,8 @@ type FieldVector struct {
 	Ee  float64
 	En  float64
 }
+
+type Field []FieldVector
 
 type Point struct {
 	lat float64
@@ -40,6 +43,28 @@ type CoordRange struct {
 	time0    int
 	timeStep int
 	nTimes   int
+}
+
+func (v Field) Len() int {
+	return len(v)
+}
+
+func (v Field) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
+}
+
+func (v Field) Less(i, j int) bool {
+	// return len(s[i]) < len(s[j])
+	if v[i].lat < v[j].lat {
+		return true
+	}
+
+	if math.Abs(v[i].lat-v[j].lat) < 1e-6 {
+		return v[i].lon < v[j].lon
+	}
+
+	// v[i].lat > v[j].lat
+	return false
 }
 
 func readLine(line string) (FieldVector, error) {
@@ -74,7 +99,7 @@ func readLine(line string) (FieldVector, error) {
 	return FieldVector{lat: lat, lon: lon, Ee: Ee, En: En}, nil
 }
 
-func readFile(csvPath string) map[Point]Vector {
+func readFile(csvPath string) []FieldVector {
 	fi, err := os.Open(csvPath)
 
 	if err != nil {
@@ -87,8 +112,7 @@ func readFile(csvPath string) map[Point]Vector {
 	scanner := bufio.NewScanner(fi)
 	scanner.Scan()
 
-	vectors := map[Point]Vector{}
-
+	vectors := []FieldVector{}
 	nPoints := 0
 
 	for scanner.Scan() {
@@ -100,12 +124,10 @@ func readFile(csvPath string) map[Point]Vector {
 			os.Exit(1)
 		}
 
-		point := Point{lat: vec.lat, lon: vec.lon}
-		vector := Vector{Ee: vec.Ee, En: vec.En}
-		vectors[point] = vector
-
+		vectors = append(vectors, vec)
 	}
 
+	sort.Sort(Field(vectors))
 	return vectors
 }
 
@@ -131,7 +153,7 @@ func getRange(csvPath string) CoordRange {
 		vec, err := readLine(scanner.Text())
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading %s:%s: %v", csvPath, nPoints, err)
+			fmt.Fprintf(os.Stderr, "Error reading %s[%d]: %v", csvPath, nPoints, err)
 			os.Exit(1)
 		}
 
@@ -346,25 +368,18 @@ func main() {
 		fmt.Printf("%d: %s\n", i+1, csvFile.Name())
 		field := readFile(csvPath)
 
-		for lati := 0; lati < cr.nLat; lati++ {
-			for loni := 0; loni < cr.nLon; loni++ {
-				lat := cr.lat0 + cr.latStep*float64(lati)
-				lon := cr.lon0 + cr.lonStep*float64(loni)
-				point := Point{lat: lat, lon: lon}
-				vec := field[point]
+		for _, vec := range field {
+			Ee := float32(vec.Ee)
+			En := float32(vec.En)
 
-				Ee := float32(vec.Ee)
-				En := float32(vec.En)
+			if err := binary.Write(fo, binary.LittleEndian, Ee); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write Ee %f, aborting: %v\n", Ee, err)
+				os.Exit(1)
+			}
 
-				if err := binary.Write(fo, binary.LittleEndian, Ee); err != nil {
-					fmt.Fprintf(os.Stderr, "Unable to write Ee %f, aborting: %v\n", Ee, err)
-					os.Exit(1)
-				}
-
-				if err := binary.Write(fo, binary.LittleEndian, En); err != nil {
-					fmt.Fprintf(os.Stderr, "Unable to write En %f, aborting: %v\n", En, err)
-					os.Exit(1)
-				}
+			if err := binary.Write(fo, binary.LittleEndian, En); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write En %f, aborting: %v\n", En, err)
+				os.Exit(1)
 			}
 		}
 
