@@ -1,17 +1,22 @@
 # CSV2B3D
 
-CSV to B3D converter written in Go. B3D is a binary format
+CSV to B3D V4 converter written in Go. B3D is a binary format
 for Powerworld (TM) Simulator used to store time- and 
-spatially-varying geoelectric field data.
+spatially-varying geoelectric field data. This assumes that
+latitude and longitude points are set on a uniform grid ranging
+between -180 and + 180 degrees. No-uniform grids are
+currently not supported.
+
+For more information on the B3D file format, refer to the
+PowerWorld (TM) documentation:
+
+https://www.powerworld.com/knowledge-base/b3d-file-format
 
 ## Running
 
-To Build:
-`go build csv2b3d.go`
+To Build: `go build csv2b3d.go`
 
-To Run:
-
-`csv2b3d <csvfile> <b3dfile>`
+To Run: `csv2b3d <csvfile> <b3dfile>`
 
 Batch Conversion: For an example of a PowerShell 7.x script to process a folder
 of input CSV files in parallel, see `Csv2B3d.ps1`
