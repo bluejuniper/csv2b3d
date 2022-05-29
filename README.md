@@ -4,7 +4,7 @@ CSV to B3D V4 converter written in Go. B3D is a binary format
 for Powerworld (TM) Simulator used to store time- and 
 spatially-varying geoelectric field data. This assumes that
 latitude and longitude points are set on a uniform grid ranging
-between -180 and + 180 degrees. No-uniform grids are
+between -180 and + 180 degrees. Non-uniform grids are
 currently not supported.
 
 For more information on the B3D file format, refer to the
