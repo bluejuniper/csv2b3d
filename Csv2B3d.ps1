@@ -1,5 +1,9 @@
 go build csv2b3d.go
 
+if (!$?) {
+    throw "Failed to compile, aborting"
+}
+
 $InputFolder = "$HOME\Data\GMD\norm_events"
 $OutputFolder = "$HOME\Data\GMD\Events\B3D"
 

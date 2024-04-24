@@ -15,7 +15,7 @@ https://www.powerworld.com/knowledge-base/b3d-file-format
 ## Running
 
 To Build: `go build csv2b3d.go`
-
+ 
 To Run: `csv2b3d <csvfile> <b3dfile>`
 
 Batch Conversion: For an example of a PowerShell 7.x script to process a folder

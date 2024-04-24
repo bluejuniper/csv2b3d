@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+// See https://gobyexample.com/command-line-flags for cli parameters
+
 type FieldVector struct {
 	lat float64
 	lon float64
@@ -227,6 +229,9 @@ func writeHeader(fo *os.File, cr CoordRange) {
 	// 	os.Exit(1)
 	// }
 
+	// Number of floating point number channels at each point.
+	// For data with X and Y directional E-fields, this value will be 2.
+	// Convention will be to put X first and then Y.
 	var nFloatChannels uint32 = 2
 
 	if err := binary.Write(fo, binary.LittleEndian, nFloatChannels); err != nil {
@@ -234,6 +239,8 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Number of byte channels at each point.
+	// Usually this value is either zero or one to indicate a quality flag byte
 	var nByteChannels uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, nByteChannels); err != nil {
@@ -241,6 +248,10 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Used to indicate the location format. In version 2 this value should be either 0 or 1.
+	// If zero the point locations are specified by a grid with the next six FLOAT fields.
+	// This was the only approach used in Version 1.  If the LOC_FORMAT is 1 then the points
+	// are specified by UNIT number of points and then three location fields for each point.
 	var locFormat uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
@@ -248,6 +259,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Longitude of first point in degrees (only if LOCATION FORMAT = 0)
 	lon0 := float32(cr.lon0)
 
 	if err := binary.Write(fo, binary.LittleEndian, lon0); err != nil {
@@ -255,6 +267,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Longitude step in degrees (only if LOCATION FORMAT = 0)
 	lonStep := float32(cr.lonStep)
 
 	if err := binary.Write(fo, binary.LittleEndian, lonStep); err != nil {
@@ -262,6 +275,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Number of longitude points (only if LOCATION FORMAT = 0)
 	lonPoints := uint32(cr.nLon)
 
 	if err := binary.Write(fo, binary.LittleEndian, lonPoints); err != nil {
@@ -269,6 +283,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Latitude of first point in degrees(only if LOCATION FORMAT = 0)
 	lat0 := float32(cr.lat0)
 
 	if err := binary.Write(fo, binary.LittleEndian, lat0); err != nil {
@@ -276,6 +291,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Latitude step in degrees(only if LOCATION FORMAT = 0)
 	latStep := float32(cr.latStep)
 
 	if err := binary.Write(fo, binary.LittleEndian, latStep); err != nil {
@@ -283,6 +299,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Number of latitude points(only if LOCATION FORMAT = 0)
 	latPoints := uint32(cr.nLat)
 
 	if err := binary.Write(fo, binary.LittleEndian, latPoints); err != nil {
@@ -297,6 +314,9 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Starting with Version 4.  Indicates the TIME_UNITS scaling used for subsequent time values.
+	// Valid entries are 0 indicating milliseconds, 1 indicating seconds, -1 for microseconds,
+	// -2 for nanoseconds
 	var timeUnits int32 = 1
 
 	if err := binary.Write(fo, binary.LittleEndian, timeUnits); err != nil {
@@ -304,6 +324,8 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
+	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
+	// (Same as IEEE Std. C37.118.2-2011)
 	var timeOffset uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
@@ -311,13 +333,16 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
-	var timeStep uint32 = 60
+	// Constant time step in TIME_UNITS. If set to zero, indicates variable time step.
+	// 10,000 with TIME_UNITS of 0 would be 10 seconds.
+	var timeStep uint32 = 100
 
 	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
 		os.Exit(1)
 	}
 
+	// Number of time points
 	timePoints := uint32(cr.nTimes)
 
 	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
