@@ -4,15 +4,15 @@ if (!$?) {
     throw "Failed to compile, aborting"
 }
 
-$InputFolder = "$HOME\Data\GMD\norm_events"
-$OutputFolder = "$HOME\Data\GMD\Events\B3D"
+$OutputFolder = "$HOME\Data\GMD\B3D"
 
 if (!(Test-Path $OutputFolder)) {
     New-Item -Path $OutputFolder -ItemType Directory
 }
 
-Remove-Item $OutputFolder\*.b3d
+# Remove-Item $OutputFolder\*.b3d
+$staticFields = 'zero', 'uniform_1V_km', 'uniform_5V_km', 'uniform_10V_km'
 
-Get-ChildItem $InputFolder | ForEach-Object -ThrottleLimit 8 -Parallel {    
-    .\csv2b3d.exe $_.FullName "data\$($_.BaseName).b3d"
+$staticFields | ForEach-Object -ThrottleLimit 6 -Parallel {    
+    .\csv2b3d.exe -static -step 0.1 -static -times 1000 "$HOME\Data\GMD\norm_events\$_" "$HOME\Data\GMD\B3D\$_.b3d"
 }

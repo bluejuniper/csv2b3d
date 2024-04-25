@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -14,6 +15,12 @@ import (
 )
 
 // See https://gobyexample.com/command-line-flags for cli parameters
+const (
+	nsTimeUnits = -2
+	usTimeUnits = -1
+	msTimeUnits = 0
+	sTimeUnits  = 1
+)
 
 type FieldVector struct {
 	lat float64
@@ -35,16 +42,19 @@ type Vector struct {
 }
 
 type CoordRange struct {
-	lat0     float64
-	lon0     float64
-	latStep  float64
-	lonStep  float64
-	nLat     int
-	nLon     int
-	nPoints  int
-	time0    int
-	timeStep int
-	nTimes   int
+	lat0    float64
+	lon0    float64
+	latStep float64
+	lonStep float64
+	nLat    int
+	nLon    int
+	nPoints int
+}
+
+type TimeRange struct {
+	startTime int
+	timeStep  float64
+	nTimes    int
 }
 
 func (v Field) Len() int {
@@ -200,7 +210,7 @@ func getRange(csvPath string) CoordRange {
 	}
 }
 
-func writeHeader(fo *os.File, cr CoordRange) {
+func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 	var magicNumber uint32 = 34280
 
 	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
@@ -307,25 +317,34 @@ func writeHeader(fo *os.File, cr CoordRange) {
 		os.Exit(1)
 	}
 
-	var time0 uint32 = 1462665600
+	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
+	// (Same as IEEE Std. C37.118.2-2011)
+	startTime := uint32(tr.startTime)
 
-	if err := binary.Write(fo, binary.LittleEndian, time0); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write time origin %d, aborting: %v\n", time0, err)
+	if err := binary.Write(fo, binary.LittleEndian, startTime); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time origin %d, aborting: %v\n", startTime, err)
 		os.Exit(1)
 	}
 
 	// Starting with Version 4.  Indicates the TIME_UNITS scaling used for subsequent time values.
 	// Valid entries are 0 indicating milliseconds, 1 indicating seconds, -1 for microseconds,
 	// -2 for nanoseconds
-	var timeUnits int32 = 1
+	var timeUnits int32 = nsTimeUnits
+
+	if tr.timeStep >= 1.0 {
+		timeUnits = sTimeUnits
+	} else if tr.timeStep >= 1e-3 {
+		timeUnits = msTimeUnits
+	} else if tr.timeStep >= 1e-6 {
+		timeUnits = usTimeUnits
+	}
 
 	if err := binary.Write(fo, binary.LittleEndian, timeUnits); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time units %d, aborting: %v\n", timeUnits, err)
 		os.Exit(1)
 	}
 
-	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
-	// (Same as IEEE Std. C37.118.2-2011)
+	// Starting with Version 3.  Number of TIME_UNITS offset in first time point
 	var timeOffset uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
@@ -335,7 +354,15 @@ func writeHeader(fo *os.File, cr CoordRange) {
 
 	// Constant time step in TIME_UNITS. If set to zero, indicates variable time step.
 	// 10,000 with TIME_UNITS of 0 would be 10 seconds.
-	var timeStep uint32 = 100
+	timeStep := uint32(math.Round(tr.timeStep))
+
+	if timeUnits == nsTimeUnits {
+		timeStep = uint32(math.Round(1e9 * tr.timeStep))
+	} else if timeUnits == usTimeUnits {
+		timeStep = uint32(math.Round(1e6 * tr.timeStep))
+	} else if timeUnits == msTimeUnits {
+		timeStep = uint32(math.Round(1e3 * tr.timeStep))
+	}
 
 	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
@@ -343,7 +370,7 @@ func writeHeader(fo *os.File, cr CoordRange) {
 	}
 
 	// Number of time points
-	timePoints := uint32(cr.nTimes)
+	timePoints := uint32(tr.nTimes)
 
 	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", timePoints, err)
@@ -352,13 +379,21 @@ func writeHeader(fo *os.File, cr CoordRange) {
 }
 
 func main() {
-	if len(os.Args) < 3 {
+	maxSteps := flag.Int("times", 0, "a string")
+	timeStep := flag.Float64("step", 60.0, "an int")
+	static := flag.Bool("static", false, "an int")
+
+	flag.Parse()
+	args := flag.Args()
+
+	if len(args) < 2 {
+		fmt.Println("%v", args)
 		fmt.Fprintln(os.Stderr, "Usage: csv2b3d <csvfile> <b3dfile>")
 		os.Exit(1)
 	}
 
-	csvFolder := os.Args[1]
-	b3dFile := os.Args[2]
+	csvFolder := args[0]
+	b3dFile := args[1]
 
 	fmt.Fprintf(os.Stderr, "In  : %s\nOut: %s\n", csvFolder, b3dFile)
 
@@ -379,19 +414,45 @@ func main() {
 	}
 
 	cr := getRange(filepath.Join(csvFolder, csvFiles[0].Name()))
-	cr.nTimes = len(csvFiles)
 
-	fmt.Fprintf(os.Stderr, "Lat range: %f:%f:%d\n", cr.lat0, cr.latStep, cr.nLat)
-	fmt.Fprintf(os.Stderr, "Lon range: %f:%f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
+	var steps = len(csvFiles)
+
+	if *maxSteps > 0 {
+		steps = *maxSteps
+	}
+
+	var tr = TimeRange{
+		startTime: 1462665600,
+		timeStep:  *timeStep,
+		nTimes:    steps,
+	}
+
+	fmt.Fprintf(os.Stderr, "Lat range: %0.3f:%0.3f:%d\n", cr.lat0, cr.latStep, cr.nLat)
+	fmt.Fprintf(os.Stderr, "Lon range: %0.3f:%0.3f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
 	fmt.Fprintf(os.Stderr, "Points: %d\n", cr.nPoints)
-	fmt.Fprintf(os.Stderr, "Times: %d\n", cr.nTimes)
+	fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
 
-	writeHeader(fo, cr)
+	writeHeader(fo, cr, tr)
+
+	var field []FieldVector
+
+	if *static {
+		fmt.Fprintln(os.Stderr, "Static mode enabled")
+		fmt.Fprintf(os.Stderr, "Loading %s\n", csvFiles[0].Name())
+		field = readFile(filepath.Join(csvFolder, csvFiles[0].Name()))
+	}
 
 	for i, csvFile := range csvFiles {
-		csvPath := filepath.Join(csvFolder, csvFile.Name())
-		fmt.Printf("%d: %s\n", i+1, csvFile.Name())
-		field := readFile(csvPath)
+		if i >= steps {
+			break
+		}
+
+		if *static {
+			fmt.Fprintf(os.Stderr, "Time step: %d\n", i+1)
+		} else {
+			fmt.Fprintf(os.Stderr, "%d: %s\n", i+1, csvFile.Name())
+			field = readFile(filepath.Join(csvFolder, csvFile.Name()))
+		}
 
 		for _, vec := range field {
 			Ee := float32(vec.Ee)
@@ -407,7 +468,5 @@ func main() {
 				os.Exit(1)
 			}
 		}
-
 	}
-
 }
