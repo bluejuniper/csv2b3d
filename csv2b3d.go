@@ -144,78 +144,12 @@ func readFile(csvPath string) []FieldVector {
 		vectors = append(vectors, vec)
 	}
 
+	// Don't need to sort for location format 1
 	sort.Sort(Field(vectors))
 	return vectors
 }
 
-func getRange(csvPath string) CoordRange {
-	fi, err := os.Open(csvPath)
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to open %s for reading, aborting\n", csvPath)
-		os.Exit(1)
-	}
-
-	defer fi.Close()
-
-	scanner := bufio.NewScanner(fi)
-	scanner.Scan()
-
-	lats := map[float64]bool{}
-	lons := map[float64]bool{}
-	nPoints := 0
-
-	for scanner.Scan() {
-		nPoints++
-		vec, err := readLine(scanner.Text())
-
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading %s[%d]: %v", csvPath, nPoints, err)
-			os.Exit(1)
-		}
-
-		lats[vec.lat] = true
-		lons[vec.lon] = true
-	}
-
-	lat0 := 0.0
-	lon0 := 0.0
-	latMax := 0.0
-	lonMax := 0.0
-
-	for k, _ := range lats {
-		lat0 = k
-		latMax = k
-		break
-	}
-
-	for k, _ := range lons {
-		lon0 = k
-		lonMax = k
-		break
-	}
-
-	for k, _ := range lats {
-		lat0 = math.Min(lat0, k)
-		latMax = math.Max(latMax, k)
-	}
-
-	for k, _ := range lons {
-		lon0 = math.Min(lon0, k)
-		lonMax = math.Max(lonMax, k)
-	}
-
-	// fmt.Printf("latMax: %f, nLat: %d\nlonMax: %f, nLon: %d\n", latMax, len(lats), lonMax, len(lons))
-
-	return CoordRange{
-		lat0: lat0, lon0: lon0,
-		nLat: len(lats), nLon: len(lons),
-		latStep: (latMax - lat0) / float64(len(lats)-1), lonStep: (lonMax - lon0) / float64(len(lons)-1),
-		nPoints: nPoints,
-	}
-}
-
-func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
+func writeHeader(fo *os.File, field []FieldVector, tr TimeRange) {
 	const magicNumber uint32 = 34280
 
 	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
@@ -275,11 +209,33 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 	}
 
 	// Number of latitude points(only if LOCATION FORMAT = 0)
-	nPoints := uint32(cr.nPoints)
+	nPoints := uint32(len(field))
 
 	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write points count %d, aborting: %v\n", nPoints, err)
 		os.Exit(1)
+	}
+
+	for _, vec := range field {
+		lon := float64(vec.lon)
+		lat := float64(vec.lat)
+		dist_to_measurement_station := float64(measurement_station_location)
+
+		if err := binary.Write(fo, binary.LittleEndian, lon); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write longitude %f, aborting: %v\n", lon, err)
+			os.Exit(1)
+		}
+
+		if err := binary.Write(fo, binary.LittleEndian, lat); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write latitude %f, aborting: %v\n", lat, err)
+			os.Exit(1)
+		}
+
+		if err := binary.Write(fo, binary.LittleEndian, dist_to_measurement_station); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write distance to measurement station %f, aborting: %v\n", dist_to_measurement_station, err)
+			os.Exit(1)
+		}
+
 	}
 
 	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
@@ -310,7 +266,7 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 	}
 
 	// Starting with Version 3.  Number of TIME_UNITS offset in first time point
-	var timeOffset uint32 = 0
+	const timeOffset uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time offset %d, aborting: %v\n", timeOffset, err)
@@ -329,7 +285,7 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 		timeStep = uint32(math.Round(1e3 * tr.timeStep))
 	}
 
-	var zeroTimeStep uint32 = 0
+	const zeroTimeStep uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, zeroTimeStep); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
@@ -391,8 +347,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	cr := getRange(filepath.Join(csvFolder, csvFiles[0].Name()))
-
 	var steps = len(csvFiles)
 
 	if *maxSteps > 0 {
@@ -405,12 +359,11 @@ func main() {
 		nTimes:    steps,
 	}
 
-	fmt.Fprintf(os.Stderr, "Lat range: %0.3f:%0.3f:%d\n", cr.lat0, cr.latStep, cr.nLat)
-	fmt.Fprintf(os.Stderr, "Lon range: %0.3f:%0.3f:%d\n", cr.lon0, cr.lonStep, cr.nLon)
-	fmt.Fprintf(os.Stderr, "Points: %d\n", cr.nPoints)
+	field := readFile(filepath.Join(csvFolder, csvFiles[0].Name()))
+	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
 	fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
 
-	writeHeader(fo, cr, tr)
+	writeHeader(fo, field, tr)
 
 	for i, csvFile := range csvFiles {
 		if i >= steps {
@@ -419,28 +372,6 @@ func main() {
 
 		fmt.Fprintf(os.Stderr, "%d: %s\n", i+1, csvFile.Name())
 		field := readFile(filepath.Join(csvFolder, csvFile.Name()))
-
-		for _, vec := range field {
-			lon := float32(vec.lon)
-			lat := float32(vec.lat)
-			dist_to_measurement_station := float32(measurement_station_location)
-
-			if err := binary.Write(fo, binary.LittleEndian, lon); err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to write longitude %f, aborting: %v\n", lon, err)
-				os.Exit(1)
-			}
-
-			if err := binary.Write(fo, binary.LittleEndian, lat); err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to write latitude %f, aborting: %v\n", lat, err)
-				os.Exit(1)
-			}
-
-			if err := binary.Write(fo, binary.LittleEndian, dist_to_measurement_station); err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to write distance to measurement station %f, aborting: %v\n", dist_to_measurement_station, err)
-				os.Exit(1)
-			}
-
-		}
 
 		for _, vec := range field {
 			Ee := float32(vec.Ee)
