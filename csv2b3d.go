@@ -22,6 +22,11 @@ const (
 	sTimeUnits  = 1
 )
 
+const (
+	measurement_station_location         float64 = 0.0
+	measurement_station_location_unknown float64 = -1.0
+)
+
 type FieldVector struct {
 	lat float64
 	lon float64
@@ -211,21 +216,21 @@ func getRange(csvPath string) CoordRange {
 }
 
 func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
-	var magicNumber uint32 = 34280
+	const magicNumber uint32 = 34280
 
 	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write magic byte, aborting: %v\n", err)
 		os.Exit(1)
 	}
 
-	var b3dVersion uint32 = 4
+	const b3dVersion uint32 = 4
 
 	if err := binary.Write(fo, binary.LittleEndian, b3dVersion); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write B3D version, aborting: %v\n", err)
 		os.Exit(1)
 	}
 
-	var nMetaStrings uint32 = 0
+	const nMetaStrings uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, nMetaStrings); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write meta string count, aborting: %v\n", err)
@@ -242,7 +247,7 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 	// Number of floating point number channels at each point.
 	// For data with X and Y directional E-fields, this value will be 2.
 	// Convention will be to put X first and then Y.
-	var nFloatChannels uint32 = 2
+	const nFloatChannels uint32 = 2
 
 	if err := binary.Write(fo, binary.LittleEndian, nFloatChannels); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write float channel count, aborting: %v\n", err)
@@ -251,7 +256,7 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 
 	// Number of byte channels at each point.
 	// Usually this value is either zero or one to indicate a quality flag byte
-	var nByteChannels uint32 = 0
+	const nByteChannels uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, nByteChannels); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write byte channel count, aborting: %v\n", err)
@@ -262,58 +267,18 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 	// If zero the point locations are specified by a grid with the next six FLOAT fields.
 	// This was the only approach used in Version 1.  If the LOC_FORMAT is 1 then the points
 	// are specified by UNIT number of points and then three location fields for each point.
-	var locFormat uint32 = 0
+	const locFormat uint32 = 1
 
 	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write location format, aborting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Longitude of first point in degrees (only if LOCATION FORMAT = 0)
-	lon0 := float32(cr.lon0)
-
-	if err := binary.Write(fo, binary.LittleEndian, lon0); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude origin %f, aborting: %v\n", lon0, err)
-		os.Exit(1)
-	}
-
-	// Longitude step in degrees (only if LOCATION FORMAT = 0)
-	lonStep := float32(cr.lonStep)
-
-	if err := binary.Write(fo, binary.LittleEndian, lonStep); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude step %f, aborting: %v\n", lonStep, err)
-		os.Exit(1)
-	}
-
-	// Number of longitude points (only if LOCATION FORMAT = 0)
-	lonPoints := uint32(cr.nLon)
-
-	if err := binary.Write(fo, binary.LittleEndian, lonPoints); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write longitude points count %d, aborting: %v\n", lonPoints, err)
-		os.Exit(1)
-	}
-
-	// Latitude of first point in degrees(only if LOCATION FORMAT = 0)
-	lat0 := float32(cr.lat0)
-
-	if err := binary.Write(fo, binary.LittleEndian, lat0); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write latitude origin %f, aborting: %v\n", lat0, err)
-		os.Exit(1)
-	}
-
-	// Latitude step in degrees(only if LOCATION FORMAT = 0)
-	latStep := float32(cr.latStep)
-
-	if err := binary.Write(fo, binary.LittleEndian, latStep); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write latitude step %f, aborting: %v\n", latStep, err)
-		os.Exit(1)
-	}
-
 	// Number of latitude points(only if LOCATION FORMAT = 0)
-	latPoints := uint32(cr.nLat)
+	nPoints := uint32(cr.nPoints)
 
-	if err := binary.Write(fo, binary.LittleEndian, latPoints); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write latitude points count %d, aborting: %v\n", latPoints, err)
+	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write points count %d, aborting: %v\n", nPoints, err)
 		os.Exit(1)
 	}
 
@@ -364,7 +329,9 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 		timeStep = uint32(math.Round(1e3 * tr.timeStep))
 	}
 
-	if err := binary.Write(fo, binary.LittleEndian, timeStep); err != nil {
+	var zeroTimeStep uint32 = 0
+
+	if err := binary.Write(fo, binary.LittleEndian, zeroTimeStep); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
 		os.Exit(1)
 	}
@@ -376,12 +343,23 @@ func writeHeader(fo *os.File, cr CoordRange, tr TimeRange) {
 		fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", timePoints, err)
 		os.Exit(1)
 	}
+
+	var currentTime uint32 = startTime
+
+	for i := 0; i < tr.nTimes; i++ {
+		if err := binary.Write(fo, binary.LittleEndian, currentTime); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", currentTime, err)
+			os.Exit(1)
+		}
+
+		currentTime += timeStep
+	}
+
 }
 
 func main() {
 	maxSteps := flag.Int("times", 0, "a string")
 	timeStep := flag.Float64("step", 60.0, "an int")
-	static := flag.Bool("static", false, "an int")
 
 	flag.Parse()
 	args := flag.Args()
@@ -434,24 +412,34 @@ func main() {
 
 	writeHeader(fo, cr, tr)
 
-	var field []FieldVector
-
-	if *static {
-		fmt.Fprintln(os.Stderr, "Static mode enabled")
-		fmt.Fprintf(os.Stderr, "Loading %s\n", csvFiles[0].Name())
-		field = readFile(filepath.Join(csvFolder, csvFiles[0].Name()))
-	}
-
 	for i, csvFile := range csvFiles {
 		if i >= steps {
 			break
 		}
 
-		if *static {
-			fmt.Fprintf(os.Stderr, "Time step: %d\n", i+1)
-		} else {
-			fmt.Fprintf(os.Stderr, "%d: %s\n", i+1, csvFile.Name())
-			field = readFile(filepath.Join(csvFolder, csvFile.Name()))
+		fmt.Fprintf(os.Stderr, "%d: %s\n", i+1, csvFile.Name())
+		field := readFile(filepath.Join(csvFolder, csvFile.Name()))
+
+		for _, vec := range field {
+			lon := float32(vec.lon)
+			lat := float32(vec.lat)
+			dist_to_measurement_station := float32(measurement_station_location)
+
+			if err := binary.Write(fo, binary.LittleEndian, lon); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write longitude %f, aborting: %v\n", lon, err)
+				os.Exit(1)
+			}
+
+			if err := binary.Write(fo, binary.LittleEndian, lat); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write latitude %f, aborting: %v\n", lat, err)
+				os.Exit(1)
+			}
+
+			if err := binary.Write(fo, binary.LittleEndian, dist_to_measurement_station); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write distance to measurement station %f, aborting: %v\n", dist_to_measurement_station, err)
+				os.Exit(1)
+			}
+
 		}
 
 		for _, vec := range field {
