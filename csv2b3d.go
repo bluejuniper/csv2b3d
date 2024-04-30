@@ -149,7 +149,7 @@ func readFile(csvPath string) []FieldVector {
 	return vectors
 }
 
-func writeHeader(fo *os.File, field []FieldVector, tr TimeRange) {
+func writeHeader(fo *os.File, field []FieldVector, tr TimeRange, message string) {
 	const magicNumber uint32 = 34280
 
 	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
@@ -164,19 +164,31 @@ func writeHeader(fo *os.File, field []FieldVector, tr TimeRange) {
 		os.Exit(1)
 	}
 
-	const nMetaStrings uint32 = 0
+	var nMetaStrings uint32 = 0
+
+	if len(message) > 0 {
+		nMetaStrings = 1
+	}
 
 	if err := binary.Write(fo, binary.LittleEndian, nMetaStrings); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write meta string count, aborting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// var metaString string = "B3D file written by csv2b3d"
+	if len(message) > 0 {
+		for _, char := range message {
+			if err := binary.Write(fo, binary.LittleEndian, char); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write meta string, aborting: %v\n", err)
+				os.Exit(1)
+			}
+		}
 
-	// if err := binary.Write(fo, binary.LittleEndian, metaString); err != nil {
-	// 	fmt.Fprintf(os.Stderr, "Unable to write meta string, aborting: %v\n", err)
-	// 	os.Exit(1)
-	// }
+		// https://stackoverflow.com/questions/38007361/how-to-create-a-null-terminated-string-in-go
+		if err := binary.Write(fo, binary.LittleEndian, rune(0)); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write meta string terminator, aborting: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	// Number of floating point number channels at each point.
 	// For data with X and Y directional E-fields, this value will be 2.
@@ -314,8 +326,9 @@ func writeHeader(fo *os.File, field []FieldVector, tr TimeRange) {
 }
 
 func main() {
-	maxSteps := flag.Int("times", 0, "a string")
-	timeStep := flag.Float64("step", 60.0, "an int")
+	maxSteps := flag.Int("times", 0, "Maximum number of time steps")
+	timeStep := flag.Float64("step", 60.0, "Time step in seconds")
+	message := flag.String("message", "", "Set an optional message")
 
 	flag.Parse()
 	args := flag.Args()
@@ -363,7 +376,7 @@ func main() {
 	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
 	fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
 
-	writeHeader(fo, field, tr)
+	writeHeader(fo, field, tr, *message)
 
 	for i, csvFile := range csvFiles {
 		if i >= steps {
