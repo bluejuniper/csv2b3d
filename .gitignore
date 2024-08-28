@@ -1,3 +1,6 @@
 /data/
 .dupver*
+.pyver*
 *.b3d
+*.exe
+*.zip
