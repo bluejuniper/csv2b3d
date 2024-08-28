@@ -2,10 +2,7 @@
 
 CSV to B3D V4 converter written in Go. B3D is a binary format
 for Powerworld (TM) Simulator used to store time- and 
-spatially-varying geoelectric field data. This assumes that
-latitude and longitude points are set on a uniform grid ranging
-between -180 and + 180 degrees. Non-uniform grids are
-currently not supported.
+spatially-varying geoelectric field data. 
 
 For more information on the B3D file format, refer to the
 PowerWorld (TM) documentation:
@@ -16,14 +13,15 @@ https://www.powerworld.com/knowledge-base/b3d-file-format
 
 To Build: `go build csv2b3d.go`
  
-To Run: `csv2b3d <csvfile> <b3dfile>`
+To Run: `csv2b3d <csvdir> <b3dfile>`
+To set an optional time step in seconds: `csv2b3d <csvdir> <b3dfile>`
 
 Batch Conversion: For an example of a PowerShell 7.x script to process a folder
-of input CSV files in parallel, see `Csv2B3d.ps1`
+of folders of input CSV files in parallel, see `Csv2B3d.ps1`
 
 ## Expected CSV Format
 
-The input CSV file is expected to have a header line
+The input CSV files are expected to have a header line
 and data lines in the following order:
 
 1. Latitude (-180 to +180 degrees)
@@ -31,7 +29,24 @@ and data lines in the following order:
 3. West-East component of electric field
 4. South-North component of electric field
 
-Example Input:
+Additonally, the CSV files should be named 
+with leading zeros such that a string sort will 
+return the correct order, e.g.
+
+```
+input01.csv
+input02.csv
+input03.csv
+input04.csv
+input05.csv
+input06.csv
+input07.csv
+input08.csv
+input09.csv
+input10.csv
+```
+
+Example input file:
 
 ``` csv
 Lat(Deg),Lon(Deg),Ee(V/km),En(V/km)
