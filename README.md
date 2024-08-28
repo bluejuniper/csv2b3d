@@ -14,7 +14,12 @@ https://www.powerworld.com/knowledge-base/b3d-file-format
 To Build: `go build csv2b3d.go`
  
 To Run: `csv2b3d <csvdir> <b3dfile>`
-To set an optional time step in seconds: `csv2b3d <csvdir> <b3dfile>`
+
+To set an optional time step in seconds: `csv2b3d -step <time_step> <csvdir> <b3dfile>`
+
+To only run on the first n files: `csv2b3d -times <count> <csvdir> <b3dfile>`
+
+For help: `csv2b3d -help`
 
 Batch Conversion: For an example of a PowerShell 7.x script to process a folder
 of folders of input CSV files in parallel, see `Csv2B3d.ps1`
