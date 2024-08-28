@@ -15,6 +15,10 @@ To Build: `go build csv2b3d.go`
  
 To Run: `csv2b3d <csvdir> <b3dfile>`
 
+### Options
+
+To set a message in the header: `csv2b3d -message "<message>" <csvdir> <b3dfile>`
+
 To set an optional time step in seconds: `csv2b3d -step <time_step> <csvdir> <b3dfile>`
 
 To only run on the first n files: `csv2b3d -times <count> <csvdir> <b3dfile>`
