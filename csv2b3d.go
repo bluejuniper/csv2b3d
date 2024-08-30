@@ -28,10 +28,15 @@ const (
 // Date,Time,Ex,Ey,Latitude,Longitude
 type FieldVector struct {
 	t   float64
-	lat float64
 	lon float64
+	lat float64
 	Ee  float64
 	En  float64
+}
+
+type Location struct {
+    lon float64
+    lat float64
 }
 
 type Field []FieldVector
@@ -45,32 +50,70 @@ func (v Field) Swap(i, j int) {
 }
 
 func (v Field) Less(i, j int) bool {
-	if v[i].t < v[j].t {
-		return true
+	if v[i].t >= v[j].t {
+		return false
 	}
 
 	// return len(s[i]) < len(s[j])
-	if v[i].lon < v[j].lon {
-		return true
+	if v[i].lon >= v[j].lon {
+		return false
 	}
 
-	if v[i].lat < v[j].lat {
-		return true
+	if v[i].lat >=  v[j].lat {
+		return false 
 	}
 
 	// v[i].lat > v[j].lat
-	return false
+	return true
 }
+
+func printField(v Field) {
+    for i, u := range v {
+        fmt.Printf("step: %d, time: %0.3f, lon: %0.3f, lat: %0.3f, x: %0.3f, y: %0.3f\n", i+1, u.t, u.lon, u.lat, u.Ee, u.En)
+    }
+}
+
+func getTimes(v Field) []float64 {
+    times := []float64{}
+    tp := v[0].t
+    times = append(times, tp)
+
+    for _, u := range v[1:] {
+        if u.t >= tp {
+            tp = u.t
+            times = append(times, tp)
+        }
+    }
+    
+    return times
+}
+
+func getLocations(v Field) []Location {
+    locs := []Location{}
+    tp := v[0].t
+    locs = append(locs, Location{lon: v[0].lon, lat: v[0].lat})
+
+    for _, u := range v[1:] {
+        if u.t >= tp {
+            break
+        }
+
+        locs = append(locs, Location{lon: u.lon, lat: u.lat})
+    }
+    
+    return locs
+}
+
 
 func readLine(line string) (FieldVector, error) {
 	s := strings.Split(line, ",")
 
 	// 2024-05-12,00:00:30.000
-	dts := s[0] + " " + s[1]
-	dt, err := time.Parse("2024-05-12 00:00:30.000", dts)
+	dts := s[0] + "T" + s[1] + "Z"
+	dt, err := time.Parse(time.RFC3339, dts)
 
 	if err != nil {
-		return FieldVector{}, errors.New("Error parsing time")
+        return FieldVector{}, errors.New("Error parsing time: " + dts)
 		os.Exit(1)
 	}
 
@@ -137,6 +180,7 @@ func readFile(csvPath string) []FieldVector {
 	sort.Sort(Field(vectors))
 	return vectors
 }
+
 
 // func writeHeader(fo *os.File, field []FieldVector, message string) {
 // 	const magicNumber uint32 = 34280
@@ -343,9 +387,10 @@ func main() {
 
 	field := readFile(csvFile)
 	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
+    printField(field)
 	// fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
 
-	// writeHeader(fo, field, tr, *message)
+	// writeHeader(fo, field, *message)
 
 	// for i, csvFile := range csvFiles {
 	// 	if i >= steps {
