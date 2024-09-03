@@ -79,7 +79,7 @@ func getTimes(v Field) []float64 {
     times = append(times, tp)
 
     for _, u := range v[1:] {
-        if u.t >= tp {
+        if u.t > tp {
             tp = u.t
             times = append(times, tp)
         }
@@ -94,10 +94,9 @@ func getLocations(v Field) []Location {
     locs = append(locs, Location{lon: v[0].lon, lat: v[0].lat})
 
     for _, u := range v[1:] {
-        if u.t >= tp {
+        if u.t > tp {
             break
         }
-
         locs = append(locs, Location{lon: u.lon, lat: u.lat})
     }
     
@@ -366,14 +365,19 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 
-	if len(args) < 2 {
+	if len(args) < 1 {
 		fmt.Println("%v", args)
 		fmt.Fprintln(os.Stderr, "Usage: csv2b3d <csvfile> <b3dfile>")
 		os.Exit(1)
 	}
 
 	csvFile := args[0]
-	b3dFile := args[1]
+    n := len(csvFile)
+    b3dFile := csvFile[0:n-4] + ".b3d"
+
+    if len(args) == 2 {
+	    b3dFile = args[1]
+    }
 
 	fmt.Fprintf(os.Stderr, "In  : %s\nOut: %s\n", csvFile, b3dFile)
 
@@ -387,7 +391,20 @@ func main() {
 
 	field := readFile(csvFile)
 	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
-    printField(field)
+    //printField(field)
+
+    //t := getTimes(field)
+
+    //for i := 0; i < len(t); i++ {
+    //    fmt.Printf("Step %d, Time: %0.3f\n", i+1, t[i])
+    //}
+
+    locs := getLocations(field)
+
+    for i := 0; i < len(locs); i++ {
+        fmt.Printf("Step %d, Lon: %0.6f, Lat: %0.6f\n", i+1, locs[i].lon, locs[i].lat)
+    }
+
 	// fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
 
 	// writeHeader(fo, field, *message)
