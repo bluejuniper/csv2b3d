@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+    "encoding/binary"
 )
 
 // See https://gobyexample.com/command-line-flags for cli parameters
@@ -181,186 +182,178 @@ func readFile(csvPath string) []FieldVector {
 }
 
 
-// func writeHeader(fo *os.File, field []FieldVector, message string) {
-// 	const magicNumber uint32 = 34280
+func writeHeader(fo *os.File, field []FieldVector, message string) {
+    const magicNumber uint32 = 34280
 
-// 	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write magic byte, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, magicNumber); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write magic byte, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	const b3dVersion uint32 = 4
+	const b3dVersion uint32 = 4
 
-// 	if err := binary.Write(fo, binary.LittleEndian, b3dVersion); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write B3D version, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, b3dVersion); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write B3D version, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	var nMetaStrings uint32 = 0
+	var nMetaStrings uint32 = 0
 
-// 	if len(message) > 0 {
-// 		nMetaStrings = 1
-// 	}
+	if len(message) > 0 {
+		nMetaStrings = 1
+	}
 
-// 	if err := binary.Write(fo, binary.LittleEndian, nMetaStrings); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write meta string count, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, nMetaStrings); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write meta string count, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	if len(message) > 0 {
-// 		for _, char := range message {
-// 			if err := binary.Write(fo, binary.LittleEndian, char); err != nil {
-// 				fmt.Fprintf(os.Stderr, "Unable to write meta string, aborting: %v\n", err)
-// 				os.Exit(1)
-// 			}
-// 		}
+	if len(message) > 0 {
+		for _, char := range message {
+			if err := binary.Write(fo, binary.LittleEndian, char); err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to write meta string, aborting: %v\n", err)
+				os.Exit(1)
+			}
+		}
 
-// 		// https://stackoverflow.com/questions/38007361/how-to-create-a-null-terminated-string-in-go
-// 		if err := binary.Write(fo, binary.LittleEndian, rune(0)); err != nil {
-// 			fmt.Fprintf(os.Stderr, "Unable to write meta string terminator, aborting: %v\n", err)
-// 			os.Exit(1)
-// 		}
-// 	}
+		// https://stackoverflow.com/questions/38007361/how-to-create-a-null-terminated-string-in-go
+		if err := binary.Write(fo, binary.LittleEndian, rune(0)); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write meta string terminator, aborting: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
-// 	// Number of floating point number channels at each point.
-// 	// For data with X and Y directional E-fields, this value will be 2.
-// 	// Convention will be to put X first and then Y.
-// 	const nFloatChannels uint32 = 2
+	// Number of floating point number channels at each point.
+	// For data with X and Y directional E-fields, this value will be 2.
+	// Convention will be to put X first and then Y.
+	const nFloatChannels uint32 = 2
 
-// 	if err := binary.Write(fo, binary.LittleEndian, nFloatChannels); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write float channel count, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, nFloatChannels); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write float channel count, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	// Number of byte channels at each point.
-// 	// Usually this value is either zero or one to indicate a quality flag byte
-// 	const nByteChannels uint32 = 0
+	// Number of byte channels at each point.
+	// Usually this value is either zero or one to indicate a quality flag byte
+	const nByteChannels uint32 = 0
 
-// 	if err := binary.Write(fo, binary.LittleEndian, nByteChannels); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write byte channel count, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, nByteChannels); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write byte channel count, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	// Used to indicate the location format. In version 2 this value should be either 0 or 1.
-// 	// If zero the point locations are specified by a grid with the next six FLOAT fields.
-// 	// This was the only approach used in Version 1.  If the LOC_FORMAT is 1 then the points
-// 	// are specified by UNIT number of points and then three location fields for each point.
-// 	const locFormat uint32 = 1
+	// Used to indicate the location format. In version 2 this value should be either 0 or 1.
+	// If zero the point locations are specified by a grid with the next six FLOAT fields.
+	// This was the only approach used in Version 1.  If the LOC_FORMAT is 1 then the points
+	// are specified by UNIT number of points and then three location fields for each point.
+	const locFormat uint32 = 1
 
-// 	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write location format, aborting: %v\n", err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, locFormat); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write location format, aborting: %v\n", err)
+		os.Exit(1)
+	}
 
-// 	// Number of latitude points(only if LOCATION FORMAT = 0)
-// 	nPoints := uint32(len(field))
 
-// 	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write points count %d, aborting: %v\n", nPoints, err)
-// 		os.Exit(1)
-// 	}
 
-// 	for _, vec := range field {
-// 		lon := float64(vec.lon)
-// 		lat := float64(vec.lat)
-// 		dist_to_measurement_station := float64(measurement_station_location)
+	// Number of latitude points(only if LOCATION FORMAT = 0)
+    locs := getLocations(field)
+	nPoints := uint32(len(locs))
 
-// 		if err := binary.Write(fo, binary.LittleEndian, lon); err != nil {
-// 			fmt.Fprintf(os.Stderr, "Unable to write longitude %f, aborting: %v\n", lon, err)
-// 			os.Exit(1)
-// 		}
+	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write points count %d, aborting: %v\n", nPoints, err)
+		os.Exit(1)
+	}
 
-// 		if err := binary.Write(fo, binary.LittleEndian, lat); err != nil {
-// 			fmt.Fprintf(os.Stderr, "Unable to write latitude %f, aborting: %v\n", lat, err)
-// 			os.Exit(1)
-// 		}
+	for _, vec := range locs {
+		lon := float64(vec.lon)
+		lat := float64(vec.lat)
+		dist_to_measurement_station := float64(measurement_station_location)
 
-// 		if err := binary.Write(fo, binary.LittleEndian, dist_to_measurement_station); err != nil {
-// 			fmt.Fprintf(os.Stderr, "Unable to write distance to measurement station %f, aborting: %v\n", dist_to_measurement_station, err)
-// 			os.Exit(1)
-// 		}
+		if err := binary.Write(fo, binary.LittleEndian, lon); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write longitude %f, aborting: %v\n", lon, err)
+			os.Exit(1)
+		}
 
-// 	}
+		if err := binary.Write(fo, binary.LittleEndian, lat); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write latitude %f, aborting: %v\n", lat, err)
+			os.Exit(1)
+		}
 
-// 	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
-// 	// (Same as IEEE Std. C37.118.2-2011)
-// 	startTime := uint32(tr.startTime)
+		if err := binary.Write(fo, binary.LittleEndian, dist_to_measurement_station); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write distance to measurement station %f, aborting: %v\n", dist_to_measurement_station, err)
+			os.Exit(1)
+		}
 
-// 	if err := binary.Write(fo, binary.LittleEndian, startTime); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write time origin %d, aborting: %v\n", startTime, err)
-// 		os.Exit(1)
-// 	}
+	}
 
-// 	// Starting with Version 4.  Indicates the TIME_UNITS scaling used for subsequent time values.
-// 	// Valid entries are 0 indicating milliseconds, 1 indicating seconds, -1 for microseconds,
-// 	// -2 for nanoseconds
-// 	var timeUnits int32 = nsTimeUnits
+	// Seconds of first time point, using midnight 1/1/1970 as epoch, not counting leap seconds.
+	// (Same as IEEE Std. C37.118.2-2011)
+    times := getTimes(field)
+	startTime := uint32(times[0])
 
-// 	if tr.timeStep >= 1.0 {
-// 		timeUnits = sTimeUnits
-// 	} else if tr.timeStep >= 1e-3 {
-// 		timeUnits = msTimeUnits
-// 	} else if tr.timeStep >= 1e-6 {
-// 		timeUnits = usTimeUnits
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, startTime); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time origin %d, aborting: %v\n", startTime, err)
+		os.Exit(1)
+	}
 
-// 	if err := binary.Write(fo, binary.LittleEndian, timeUnits); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write time units %d, aborting: %v\n", timeUnits, err)
-// 		os.Exit(1)
-// 	}
+	// Starting with Version 4.  Indicates the TIME_UNITS scaling used for subsequent time values.
+	// Valid entries are 0 indicating milliseconds, 1 indicating seconds, -1 for microseconds,
+	// -2 for nanoseconds
+    // Use units of seconds for now 
+    // TODO: select smaller time unit based on smallest nonzero timestep
+	var timeUnits int32 = sTimeUnits
 
-// 	// Starting with Version 3.  Number of TIME_UNITS offset in first time point
-// 	const timeOffset uint32 = 0
+	//if tr.timeStep >= 1.0 {
+	//	timeUnits = sTimeUnits
+	//} else if tr.timeStep >= 1e-3 {
+	//	timeUnits = msTimeUnits
+	//} else if tr.timeStep >= 1e-6 {
+	//	timeUnits = usTimeUnits
+	//}
 
-// 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write time offset %d, aborting: %v\n", timeOffset, err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, timeUnits); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time units %d, aborting: %v\n", timeUnits, err)
+		os.Exit(1)
+	}
 
-// 	// Constant time step in TIME_UNITS. If set to zero, indicates variable time step.
-// 	// 10,000 with TIME_UNITS of 0 would be 10 seconds.
-// 	timeStep := uint32(math.Round(tr.timeStep))
+	// Starting with Version 3.  Number of TIME_UNITS offset in first time point
+    timeOffset := uint32(times[0])
 
-// 	if timeUnits == nsTimeUnits {
-// 		timeStep = uint32(math.Round(1e9 * tr.timeStep))
-// 	} else if timeUnits == usTimeUnits {
-// 		timeStep = uint32(math.Round(1e6 * tr.timeStep))
-// 	} else if timeUnits == msTimeUnits {
-// 		timeStep = uint32(math.Round(1e3 * tr.timeStep))
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time offset %d, aborting: %v\n", timeOffset, err)
+		os.Exit(1)
+	}
 
-// 	const zeroTimeStep uint32 = 0
+	// Constant time step in TIME_UNITS. If set to zero, indicates variable time step.
+	// 10,000 with TIME_UNITS of 0 would be 10 seconds.
+	const zeroTimeStep uint32 = 0
 
-// 	if err := binary.Write(fo, binary.LittleEndian, zeroTimeStep); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", timeStep, err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, zeroTimeStep); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time step %d, aborting: %v\n", zeroTimeStep, err)
+		os.Exit(1)
+	}
 
-// 	// Number of time points
-// 	timePoints := uint32(tr.nTimes)
+	// Number of time points
+    timePoints := uint32(len(times))
 
-// 	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
-// 		fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", timePoints, err)
-// 		os.Exit(1)
-// 	}
+	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", timePoints, err)
+		os.Exit(1)
+	}
 
-// 	var currentTime uint32 = startTime
+    for i, t := range times[1:len(times)-1] {
+		if err := binary.Write(fo, binary.LittleEndian, uint32(t - times[0])); err != nil {
+            fmt.Fprintf(os.Stderr, "Unable to write time point %d, aborting: %v\n", i + 1, err)
+			os.Exit(1)
+		}
+	}
 
-// 	for i := 0; i < tr.nTimes; i++ {
-// 		if err := binary.Write(fo, binary.LittleEndian, currentTime); err != nil {
-// 			fmt.Fprintf(os.Stderr, "Unable to write time points count %d, aborting: %v\n", currentTime, err)
-// 			os.Exit(1)
-// 		}
-
-// 		currentTime += timeStep
-// 	}
-
-// }
+ }
 
 func main() {
 	// maxSteps := flag.Int("times", 0, "Maximum number of time steps")
 	// timeStep := flag.Float64("step", 60.0, "Time step in seconds")
-	// message := flag.String("message", "", "Set an optional message")
+	message := flag.String("message", "", "Set an optional message")
 
 	flag.Parse()
 	args := flag.Args()
@@ -399,37 +392,26 @@ func main() {
     //    fmt.Printf("Step %d, Time: %0.3f\n", i+1, t[i])
     //}
 
-    locs := getLocations(field)
+    //locs := getLocations(field)
 
-    for i := 0; i < len(locs); i++ {
-        fmt.Printf("Step %d, Lon: %0.6f, Lat: %0.6f\n", i+1, locs[i].lon, locs[i].lat)
-    }
+    //for i := 0; i < len(locs); i++ {
+    //    fmt.Printf("Step %d, Lon: %0.6f, Lat: %0.6f\n", i+1, locs[i].lon, locs[i].lat)
+    //}
 
-	// fmt.Fprintf(os.Stderr, "Times: %d\n", tr.nTimes)
+	writeHeader(fo, field, *message)
 
-	// writeHeader(fo, field, *message)
+	for _, vec := range field {
+		Ee := float32(vec.Ee)
+		En := float32(vec.En)
 
-	// for i, csvFile := range csvFiles {
-	// 	if i >= steps {
-	// 		break
-	// 	}
+		if err := binary.Write(fo, binary.LittleEndian, Ee); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write Ee %f, aborting: %v\n", Ee, err)
+			os.Exit(1)
+		}
 
-	// 	fmt.Fprintf(os.Stderr, "%d: %s\n", i+1, csvFile.Name())
-	// 	field := readFile(filepath.Join(csvFolder, csvFile.Name()))
-
-	// 	for _, vec := range field {
-	// 		Ee := float32(vec.Ee)
-	// 		En := float32(vec.En)
-
-	// 		if err := binary.Write(fo, binary.LittleEndian, Ee); err != nil {
-	// 			fmt.Fprintf(os.Stderr, "Unable to write Ee %f, aborting: %v\n", Ee, err)
-	// 			os.Exit(1)
-	// 		}
-
-	// 		if err := binary.Write(fo, binary.LittleEndian, En); err != nil {
-	// 			fmt.Fprintf(os.Stderr, "Unable to write En %f, aborting: %v\n", En, err)
-	// 			os.Exit(1)
-	// 		}
-	// 	}
-	// }
+		if err := binary.Write(fo, binary.LittleEndian, En); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to write En %f, aborting: %v\n", En, err)
+			os.Exit(1)
+		}
+	}
 }
