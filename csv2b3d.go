@@ -68,11 +68,30 @@ func (v Field) Less(i, j int) bool {
 	return true
 }
 
-func printField(v Field) {
-    for i, u := range v {
-        fmt.Printf("step: %d, time: %0.3f, lon: %0.3f, lat: %0.3f, x: %0.3f, y: %0.3f\n", i+1, u.t, u.lon, u.lat, u.Ee, u.En)
+func printField(field Field) {
+    fmt.Printf("Step,Time,Longitude,Latitude,Ee,En\n")
+    for i, u := range field {
+        //fmt.Printf("step: %d, time: %0.3f, lon: %0.3f, lat: %0.3f, x: %0.3f, y: %0.3f\n", i+1, u.t, u.lon, u.lat, u.Ee, u.En)
+        fmt.Printf("%d,%0.3f,%0.3f,%0.3f,%0.3f,%0.3f\n", i+1, u.t, u.lon, u.lat, u.Ee, u.En)
     }
 }
+
+func printTimes(field Field) {
+    times := getTimes(field)
+
+    for i, t := range times {
+        fmt.Printf("Step %d, Time: %0.3f\n", i+1, t)
+    }
+}
+
+func printLocs(field Field) {
+    locs := getLocations(field)
+
+    for i, u := range locs {
+        fmt.Printf("Step %d, Lon: %0.6f, Lat: %0.6f\n", i+1, u.lon, u.lat)
+    }
+}
+
 
 func getTimes(v Field) []float64 {
     times := []float64{}
@@ -80,7 +99,7 @@ func getTimes(v Field) []float64 {
     times = append(times, tp)
 
     for _, u := range v[1:] {
-        if u.t > tp {
+        if u.t != tp {
             tp = u.t
             times = append(times, tp)
         }
@@ -257,6 +276,7 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 
 	// Number of latitude points(only if LOCATION FORMAT = 0)
     locs := getLocations(field)
+    fmt.Fprintf(os.Stderr, "Number of cordinates: %d\n", len(locs))
 	nPoints := uint32(len(locs))
 
 	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
@@ -317,7 +337,7 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 	}
 
 	// Starting with Version 3.  Number of TIME_UNITS offset in first time point
-    timeOffset := uint32(times[0])
+    const timeOffset uint32 = 0
 
 	if err := binary.Write(fo, binary.LittleEndian, timeOffset); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to write time offset %d, aborting: %v\n", timeOffset, err)
@@ -334,6 +354,8 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 	}
 
 	// Number of time points
+    fmt.Fprintf(os.Stderr, "Number of time points: %d\n", len(times))
+    //printTimes(field)
     timePoints := uint32(len(times))
 
 	if err := binary.Write(fo, binary.LittleEndian, timePoints); err != nil {
@@ -341,7 +363,7 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 		os.Exit(1)
 	}
 
-    for i, t := range times[1:len(times)-1] {
+    for i, t := range times[1:] {
 		if err := binary.Write(fo, binary.LittleEndian, uint32(t - times[0])); err != nil {
             fmt.Fprintf(os.Stderr, "Unable to write time point %d, aborting: %v\n", i + 1, err)
 			os.Exit(1)
@@ -384,19 +406,7 @@ func main() {
 
 	field := readFile(csvFile)
 	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
-    //printField(field)
-
-    //t := getTimes(field)
-
-    //for i := 0; i < len(t); i++ {
-    //    fmt.Printf("Step %d, Time: %0.3f\n", i+1, t[i])
-    //}
-
-    //locs := getLocations(field)
-
-    //for i := 0; i < len(locs); i++ {
-    //    fmt.Printf("Step %d, Lon: %0.6f, Lat: %0.6f\n", i+1, locs[i].lon, locs[i].lat)
-    //}
+    printField(field)
 
 	writeHeader(fo, field, *message)
 
