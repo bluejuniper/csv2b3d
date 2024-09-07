@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-    "slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -90,22 +89,20 @@ func printLocs(field Field) {
 }
 
 
-func getTimes(field Field) []float64 {
-    uniqueTimes := make(map[float64]bool)
+func getTimes(f Field) []float64 {
+    // call this if we already know size of t 
+    // times := make([]float64, nt)
+    times := []float64{}
+    tp := f[0].t
+    times = append(times, tp)
 
-    for _, v := range field {
-        uniqueTimes[v.t] = true
+    for _, v := range f[1:] {
+        if v.t > tp {
+            tp = v.t
+            times = append(times, tp)
+        }
     }
-
-    times := make([]float64, len(uniqueTimes))
-    i := 0
-
-    for t, _ := range uniqueTimes {
-        times[i] = t
-        i++
-    }
-    
-	slices.Sort(times)
+ 
     return times
 }
 
@@ -196,8 +193,16 @@ func readFile(csvPath string) []FieldVector {
 		vectors = append(vectors, vec)
 	}
 
+
 	// Don't need to sort for location format 1
-	sort.Sort(Field(vectors))
+    for i := 1; i < len(vectors); i++ {
+        //# field is unsorted
+        if Field(vectors).Less(i, i - 1) {
+	        sort.Sort(Field(vectors))
+            return vectors
+        }
+    }
+
 	return vectors
 }
 
@@ -277,7 +282,7 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 
 	// Number of latitude points(only if LOCATION FORMAT = 0)
     locs := getLocations(field)
-    fmt.Fprintf(os.Stderr, "Number of cordinates: %d\n", len(locs))
+    fmt.Fprintf(os.Stderr, "Number of coordinates: %d\n", len(locs))
 	nPoints := uint32(len(locs))
 
 	if err := binary.Write(fo, binary.LittleEndian, nPoints); err != nil {
@@ -383,7 +388,7 @@ func main() {
 
 	if len(args) < 1 {
 		fmt.Println("%v", args)
-		fmt.Fprintln(os.Stderr, "Usage: csv2b3d <csvfile> <b3dfile>")
+		fmt.Fprintln(os.Stderr, "Usage: csv2b3d csvfile [b3dfile]")
 		os.Exit(1)
 	}
 
@@ -395,7 +400,7 @@ func main() {
 	    b3dFile = args[1]
     }
 
-	fmt.Fprintf(os.Stderr, "In  : %s\nOut: %s\n", csvFile, b3dFile)
+	fmt.Fprintf(os.Stderr, "Read: %s\n", b3dFile)
 
 	fo, err := os.Create(b3dFile)
 	defer fo.Close()
@@ -406,8 +411,8 @@ func main() {
 	}
 
 	field := readFile(csvFile)
-	fmt.Fprintf(os.Stderr, "Points: %d\n", len(field))
-    printField(field)
+	fmt.Fprintf(os.Stderr, "Number of field points: %d\n", len(field))
+    // printField(field)
 
 	writeHeader(fo, field, *message)
 
@@ -425,4 +430,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	fmt.Fprintf(os.Stderr, "Wrote: %s\n", b3dFile)
 }

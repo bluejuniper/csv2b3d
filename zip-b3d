@@ -1,0 +1,3 @@
+dt=$(python3 $HOME/repos/pytoys/datestr.py -t)
+zip "$1-$dt.zip" "$1.b3d"
+
