@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+    "slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,22 +51,18 @@ func (v Field) Swap(i, j int) {
 	v[i], v[j] = v[j], v[i]
 }
 
+// 2024-08-24 13:24:00 (-106.5, 34.0)
+// 2024-08-24 13:20:00 (-106.0, 34.5)
 func (v Field) Less(i, j int) bool {
-	if v[i].t >= v[j].t {
-		return false
+	if v[i].t != v[j].t {
+		return v[i].t < v[j].t
 	}
 
-	// return len(s[i]) < len(s[j])
-	if v[i].lon >= v[j].lon {
-		return false
+	if v[i].lat != v[j].lat {
+		return v[i].lat < v[j].lat
 	}
 
-	if v[i].lat >=  v[j].lat {
-		return false 
-	}
-
-	// v[i].lat > v[j].lat
-	return true
+    return v[i].lon < v[j].lon 	
 }
 
 func printField(field Field) {
@@ -93,18 +90,22 @@ func printLocs(field Field) {
 }
 
 
-func getTimes(v Field) []float64 {
-    times := []float64{}
-    tp := v[0].t
-    times = append(times, tp)
+func getTimes(field Field) []float64 {
+    uniqueTimes := make(map[float64]bool)
 
-    for _, u := range v[1:] {
-        if u.t != tp {
-            tp = u.t
-            times = append(times, tp)
-        }
+    for _, v := range field {
+        uniqueTimes[v.t] = true
+    }
+
+    times := make([]float64, len(uniqueTimes))
+    i := 0
+
+    for t, _ := range uniqueTimes {
+        times[i] = t
+        i++
     }
     
+	slices.Sort(times)
     return times
 }
 
@@ -363,7 +364,7 @@ func writeHeader(fo *os.File, field []FieldVector, message string) {
 		os.Exit(1)
 	}
 
-    for i, t := range times[1:] {
+    for i, t := range times {
 		if err := binary.Write(fo, binary.LittleEndian, uint32(t - times[0])); err != nil {
             fmt.Fprintf(os.Stderr, "Unable to write time point %d, aborting: %v\n", i + 1, err)
 			os.Exit(1)
