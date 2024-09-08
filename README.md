@@ -16,33 +16,26 @@ https://www.powerworld.com/knowledge-base/b3d-file-format
 
 To Build: `go build csv2b3d.go`
  
-To Run: `csv2b3d <csvfile> <b3dfile>`
+To Run: `csv2b3d <efield.csv>`
 
-Batch Conversion: For an example of a PowerShell 7.x script to process a folder
-of input CSV files in parallel, see `Csv2B3d.ps1`
+This will generate an output file `efield.b3d`. 
+
+To specify the output file: `csv2b3d <efield.csv> <efield.b3d>`
+
+To specify a message in the b3d header: `csv2b3d -m "message" <efield.csv>`
+
 
 ## Expected CSV Format
 
 The input CSV file is expected to have a header line
 and data lines in the following order:
 
-1. Latitude (-180 to +180 degrees)
-2. Longitude (-180 to +180 degrees)
+1. Date in YYYY-MM-DD format
+2. Time in hh:mm:ss.sss format
 3. West-East component of electric field
 4. South-North component of electric field
-
-Example Input:
-
-``` csv
-Lat(Deg),Lon(Deg),Ee(V/km),En(V/km)
-0.0,0.0,-0.9956,0.9267
-0.0,1.0,-0.1526,0.7598
-0.0,2.0,-0.5288,0.3514
-0.0,3.0,-0.0806,0.2324
-0.0,4.0,-0.5321,0.2654
-0.0,5.0,-0.7197,0.3807
-0.0,6.0,-0.8127,0.3258
-```
+5. Latitude (-180 to +180 degrees)
+6. Longitude (-180 to +180 degrees)
 
 ## License
 

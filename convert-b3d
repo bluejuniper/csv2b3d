@@ -1,0 +1,4 @@
+#!/bin/bash
+for csvfile in data/*.csv; do
+	./csv2b3d $csvfile
+done

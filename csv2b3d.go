@@ -130,7 +130,7 @@ func readLine(line string) (FieldVector, error) {
 	dt, err := time.Parse(time.RFC3339, dts)
 
 	if err != nil {
-        return FieldVector{}, errors.New("Error parsing time: " + dts)
+        return FieldVector{}, errors.New("Error parsing time: " + dts + "\n")
 		os.Exit(1)
 	}
 
@@ -139,27 +139,27 @@ func readLine(line string) (FieldVector, error) {
 	Ee, err := strconv.ParseFloat(s[2], 64)
 
 	if err != nil {
-		return FieldVector{}, errors.New("Error parsing Ee")
+		return FieldVector{}, errors.New("Error parsing Ee\n")
 		os.Exit(1)
 	}
 
 	En, err := strconv.ParseFloat(s[3], 64)
 
 	if err != nil {
-		return FieldVector{}, errors.New("Error parsing En")
+		return FieldVector{}, errors.New("Error parsing En\n")
 		os.Exit(1)
 	}
 
 	lat, err := strconv.ParseFloat(s[4], 64)
 
 	if err != nil {
-		return FieldVector{}, errors.New("Error parsing latitude")
+		return FieldVector{}, errors.New("Error parsing latitude\n")
 	}
 
 	lon, err := strconv.ParseFloat(s[5], 64)
 
 	if err != nil {
-		return FieldVector{}, errors.New("Error parsing longitude")
+		return FieldVector{}, errors.New("Error parsing longitude\n")
 	}
 
 	return FieldVector{t: t, lat: lat, lon: lon, Ee: Ee, En: En}, nil
